@@ -48,16 +48,51 @@ public class CoinController : NetworkBehaviour
         NetworkObject.transform.position = NetworkObject.transform.position + transform.forward * _spinSpeed;
     }
 
-    public void OnCollisionEnter(Collision col)
+    //public void OnCollisionEnter(Collision col)
+    //{
+    //    hitPlayer = col.transform.GetComponent<PlayerController>();
+    //    if (hitPlayer.myNumber != shootingPlayerNumber)
+    //    {
+    //        hitPlayer.NetworkObject.Despawn(true);
+    //    }
+    //    else
+    //    {
+    //        return;
+    //    }
+    //}
+
+    public void OnTriggerEnter(Collider col)
     {
         hitPlayer = col.transform.GetComponent<PlayerController>();
-        if (hitPlayer.myNumber != shootingPlayerNumber)
+        if (hitPlayer != null)
         {
-            hitPlayer.NetworkObject.Despawn(true);
+            if (hitPlayer.myNumber == shootingPlayerNumber)
+            {
+                return;
+            }
+            if (hitPlayer.myNumber != shootingPlayerNumber)
+            {
+                hitPlayer.NetworkObject.Despawn(true);
+                Destroy(this.gameObject);
+            }
+            else
+            {
+                Destroy(this.gameObject);
+                return;
+            }
+        }
+    }
+
+    public void OnCollisionEnter(Collision collision)
+    {
+        hitPlayer = collision.transform.GetComponent<PlayerController>();
+        if (hitPlayer != null)
+        {
+            
         }
         else
         {
-            return;
+            Destroy(this.gameObject);
         }
     }
 }

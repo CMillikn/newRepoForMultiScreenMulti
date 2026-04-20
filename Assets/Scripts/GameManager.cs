@@ -1,6 +1,9 @@
 using System;
 using UnityEngine;
 using Unity.Netcode;
+using NUnit.Framework;
+using System.Collections.Generic;
+using TMPro;
 
 // GameManager handles startup logic — deciding whether this instance runs as a
 // dedicated server or presents the connect UI to the player.
@@ -27,6 +30,18 @@ public class GameManager : NetworkBehaviour
         NetworkVariableReadPermission.Everyone,
         NetworkVariableWritePermission.Server
     );
+
+    // List of all players after they spawn.
+    // Used for placing players on opposite sides of the map and determining the winner at the end of the game.
+    // Positions are assigned using the later Spawn List.
+    public List<PlayerController> playerList = new List<PlayerController>();
+    public TextMeshProUGUI winnerText;
+
+    // List of all potential spawnpoints for a player.
+    // All players are assigned to a quadrant based on their player number.
+    // This is handled via the player script.
+    public List<GameObject> spawnList = new List<GameObject>();
+    
 
     private void Awake()
     {
@@ -102,6 +117,21 @@ public class GameManager : NetworkBehaviour
         Debug.Log("Starting in dedicated server mode.");
         // StartServer() starts NGO in server-only mode: no local player is spawned.
         NetworkManager.Singleton.StartServer();
+    }
+
+    private void Update()
+    {
+        if (GameStarted.Value == true)
+        {
+            if (playerList.Count == 1)
+            {
+                winnerText.text = $"Player {playerList[0].myNumber + 1} wins!";
+            }
+            else
+            {
+                winnerText.text = "";
+            }
+        }
     }
 
     // OnApplicationQuit() is called when the application closes or Play mode stops.

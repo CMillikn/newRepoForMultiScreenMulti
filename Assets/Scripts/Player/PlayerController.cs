@@ -3,6 +3,7 @@ using UnityEngine.InputSystem;
 using Unity.Collections;
 using Unity.Netcode;
 using TMPro;
+using System.Collections;
 
 // PlayerController handles movement, color assignment, and the player number label.
 // It inherits from NetworkBehaviour instead of MonoBehaviour, which gives it
@@ -27,6 +28,16 @@ public class PlayerController : NetworkBehaviour
     // without needing a direct reference to the UI.
     public static string LocalPlayerName = "Player";
     public int myNumber;
+    public Light playerSpotlight;
+
+    Mouse mainMaus;
+
+    // Bullet script 
+    CoinController bulletScript;
+
+    // Reload time and bool for if they can shoot
+    public float reloadFloat;
+    public bool canShoot;
     
     // Eight distinct colors, one per player slot (indexed by OwnerClientId % 8).
     private static readonly Color[] PlayerColors = new Color[]
@@ -89,6 +100,7 @@ public class PlayerController : NetworkBehaviour
         // Modulo 8 keeps the index within the PlayerColors array bounds.
         if (IsServer)
         {
+            mainMaus = Mouse.current;
             _colorIndex.Value = (int)(OwnerClientId % (ulong)PlayerColors.Length);
 
             // ConnectedClients only contains real game clients — the dedicated server
@@ -96,6 +108,8 @@ public class PlayerController : NetworkBehaviour
             // 2 for the second, and so on. This avoids the N-1 adjustment that would
             // be needed if we used OwnerClientId directly.
             _playerNumber.Value = NetworkManager.ConnectedClients.Count;
+            GameManager.Instance.playerList.Add(this);
+
 
             // Spread players along the X axis so they don't spawn on top of each other.
             // _playerNumber is 1-based, so subtract 1 to put the first player at the origin.
@@ -103,7 +117,17 @@ public class PlayerController : NetworkBehaviour
             // takes over, so it becomes the client's starting location.
             // Y is 1 to raise the capsule above the floor plane — the default capsule is
             // 2 units tall, so its center must be 1 unit up to sit flush on the ground.
-            transform.position = new Vector3((_playerNumber.Value - 1) * 1f, 1f, 0f);
+
+            //transform.position = new Vector3((_playerNumber.Value - 1) * 1f, 1f, 0f);
+            //if (_playerNumber.Value -1 > 0)
+            //{
+                //transform.position = Vector3.zero;
+            //}
+            //else
+            {
+                transform.position = GameManager.Instance.spawnList[_playerNumber.Value].transform.position;
+            }
+
         }
 
         // Subscribe to future color changes so all clients update visuals
@@ -278,6 +302,16 @@ public class PlayerController : NetworkBehaviour
         mousePosition.z = mainCam.transform.position.y;
         mousePosition = mainCam.ScreenToWorldPoint(mousePosition);
         transform.LookAt(new Vector3(mousePosition.x, this.transform.position.y, mousePosition.z));
+
+        if (mainMaus.rightButton.isPressed)
+        {
+            playerSpotlight.intensity = 50;
+        }
+        else
+        {
+            playerSpotlight.intensity = 0;
+        }
+
     }
 
     // Returns true if placing this capsule at proposedPosition would overlap
@@ -327,15 +361,41 @@ public class PlayerController : NetworkBehaviour
             Debug.LogError("[PlayerController] Coin Prefab is not assigned on the Player prefab.");
             return;
         }
+        if (canShoot)
+        {
+            StartCoroutine(reloadTime());
+            GameObject coin = Instantiate(_coinPrefab, position, this.transform.rotation);
+            CoinController coinScript = coin.GetComponent<CoinController>();
+            coinScript.shootingPlayerNumber = myNumber;
+            coin.GetComponent<NetworkObject>().Spawn(destroyWithScene: true);
+        }
 
-        GameObject coin = Instantiate(_coinPrefab, position, this.transform.rotation);
-        CoinController coinScript = coin.GetComponent<CoinController>();
-        coinScript.shootingPlayerNumber = myNumber;
+
         
 
         // Spawn() registers the object with NGO and replicates it to all clients.
         // destroyWithScene: true ensures it's cleaned up if the scene is unloaded.
-        coin.GetComponent<NetworkObject>().Spawn(destroyWithScene: true);
+
+    }
+
+    IEnumerator reloadTime()
+    {
+        canShoot = false;
+        yield return new WaitForSeconds(reloadFloat);
+        canShoot = true;
+    }
+
+    private void OnTriggerEnter(Collider trg)
+    {
+        bulletScript = trg.transform.GetComponent<CoinController>();
+        if (bulletScript != null)
+        {
+            if (bulletScript.shootingPlayerNumber != myNumber)
+            {
+                GameManager.Instance.playerList.Remove(this);
+                this.NetworkObject.Despawn();
+            }
+        }
     }
 
     private void LateUpdate()
